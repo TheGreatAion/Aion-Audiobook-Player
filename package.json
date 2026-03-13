@@ -1,0 +1,56 @@
+{
+  "name": "aion-audiobook-player",
+  "version": "1.0.0",
+  "description": "Modern desktop audiobook player with a cover-focused library and persistent playback",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win nsis"
+  },
+  "keywords": [
+    "electron",
+    "audiobook",
+    "player"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^36.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "howler": "^2.2.4",
+    "lucide": "^0.577.0",
+    "motion": "^12.35.2",
+    "music-metadata": "^11.12.1",
+    "node-vibrant": "^4.0.4"
+  },
+  "build": {
+    "appId": "com.aion.audiobookplayer",
+    "productName": "Aion Audiobook Player",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "package.json",
+      "!dist/**"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

@@ -1,0 +1,806 @@
+﻿<!doctype html>
+<!-- src/renderer/index.html hosts the renderer shell: sidebar, library, settings, player, collections, and dock. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aion Audiobook Player</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header id="custom-titlebar" class="custom-titlebar">
+      <div id="custom-titlebar-drag" class="custom-titlebar__drag">
+        <span class="custom-titlebar__title">Aion Audiobook Player</span>
+      </div>
+
+      <div class="custom-titlebar__actions">
+        <button
+          id="window-pin"
+          class="custom-titlebar__button custom-titlebar__button--pin"
+          type="button"
+          aria-label="Enable always on top"
+          title="Enable always on top"
+        >
+          <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="pin-off"></i></span>
+        </button>
+        <button
+          id="window-minimize"
+          class="custom-titlebar__button custom-titlebar__button--minimize"
+          type="button"
+          aria-label="Minimize window"
+          title="Minimize window"
+        >
+          <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="minus"></i></span>
+        </button>
+        <button
+          id="window-maximize"
+          class="custom-titlebar__button custom-titlebar__button--maximize"
+          type="button"
+          aria-label="Maximize window"
+          title="Maximize window"
+        >
+          <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="square"></i></span>
+        </button>
+        <button
+          id="window-close"
+          class="custom-titlebar__button custom-titlebar__button--close"
+          type="button"
+          aria-label="Close window"
+          title="Close window"
+        >
+          <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="x"></i></span>
+        </button>
+      </div>
+    </header>
+
+    <div class="app-shell">
+      <div class="ambient ambient-one"></div>
+      <div class="ambient ambient-two"></div>
+
+      <section id="library-view" class="library-view">
+        <aside class="library-sidebar">
+          <button
+            id="sidebar-toggle"
+            class="sidebar-collapse-button"
+            type="button"
+            aria-label="Collapse sidebar"
+            title="Collapse sidebar"
+          >
+            <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="panel-left-close"></i></span>
+          </button>
+
+          <nav class="sidebar-nav" aria-label="Library navigation">
+            <button id="nav-library" class="sidebar-link is-active" type="button">Library</button>
+            <button id="nav-settings" class="sidebar-link" type="button">Settings</button>
+            <button id="resume-book" class="sidebar-link sidebar-link--resume hidden" type="button">
+              <span class="sidebar-link__label">Continue Listening</span>
+              <strong id="resume-book-label">Nothing yet</strong>
+            </button>
+          </nav>
+
+          <div class="sidebar-footer">
+            <div class="sidebar-stat">
+              <span class="meta-label">Books</span>
+              <strong id="book-count">0</strong>
+            </div>
+            <div class="sidebar-stat">
+              <span class="meta-label">Libraries</span>
+              <strong id="library-root">No folder selected</strong>
+            </div>
+          </div>
+        </aside>
+
+        <main class="library-content">
+          <header class="topbar">
+            <div class="page-heading">
+              <h2>Audiobook Library</h2>
+              <p id="updated-at" class="updated-at">Waiting for import</p>
+            </div>
+
+            <div class="topbar-actions">
+              <button id="choose-library" class="button button-primary" type="button">
+                Add Library
+              </button>
+              <button id="new-collection" class="button button-secondary" type="button">
+                New Collection
+              </button>
+              <button id="cancel-collection" class="button button-secondary hidden" type="button">
+                Cancel
+              </button>
+              <button id="refresh-metadata" class="button button-secondary" type="button">
+                Refresh Metadata
+              </button>
+              <button id="rescan-library" class="button button-secondary" type="button">
+                Rescan
+              </button>
+            </div>
+          </header>
+
+          <section id="settings-view" class="settings-view hidden">
+            <header class="settings-header">
+              <div class="page-heading">
+                <h2>Settings</h2>
+                <p class="updated-at">Tune the app experience, playback defaults, and library behavior.</p>
+              </div>
+            </header>
+
+            <div class="settings-grid">
+              <section class="settings-card">
+                <div class="section-header compact">
+                  <div>
+                    <p class="eyebrow">Appearance</p>
+                    <h3>App Experience</h3>
+                  </div>
+                </div>
+
+                <div class="settings-list">
+                  <label class="settings-row settings-row--toggle" for="setting-animations-enabled">
+                    <div>
+                      <strong>Animations</strong>
+                      <p>Enable ambient motion and transition effects across the app.</p>
+                    </div>
+                    <span class="toggle-switch">
+                      <input id="setting-animations-enabled" type="checkbox" />
+                      <span class="toggle-switch__track"></span>
+                    </span>
+                  </label>
+
+                  <label class="settings-row" for="setting-sidebar-default">
+                    <div>
+                      <strong>Sidebar On Launch</strong>
+                      <p>Choose whether the left panel starts expanded or collapsed.</p>
+                    </div>
+                    <select id="setting-sidebar-default" class="settings-select">
+                      <option value="expanded">Expanded</option>
+                      <option value="collapsed">Collapsed</option>
+                    </select>
+                  </label>
+
+                  <label class="settings-row" for="setting-start-view">
+                    <div>
+                      <strong>Start View</strong>
+                      <p>Pick the page that should open first when the app launches.</p>
+                    </div>
+                    <select id="setting-start-view" class="settings-select">
+                      <option value="library">Library</option>
+                      <option value="settings">Settings</option>
+                    </select>
+                  </label>
+                </div>
+              </section>
+
+              <section class="settings-card">
+                <div class="section-header compact">
+                  <div>
+                    <p class="eyebrow">Library & Collections</p>
+                    <h3>Browsing</h3>
+                  </div>
+                </div>
+
+                <div class="settings-list">
+                  <label class="settings-row settings-row--stacked" for="setting-default-cover-size">
+                    <div>
+                      <strong>Default Collection Cover Size</strong>
+                      <p>Controls the default size for book covers inside collection pages.</p>
+                    </div>
+                    <div class="settings-slider-row">
+                      <input
+                        id="setting-default-cover-size"
+                        class="settings-range"
+                        type="range"
+                        min="150"
+                        max="320"
+                        step="1"
+                      />
+                      <span id="setting-default-cover-size-value" class="settings-range-value">220px</span>
+                    </div>
+                  </label>
+
+                  <label class="settings-row settings-row--toggle" for="setting-remember-cover-size">
+                    <div>
+                      <strong>Remember Collection Cover Size</strong>
+                      <p>Keep the last cover size you set in collections between app launches.</p>
+                    </div>
+                    <span class="toggle-switch">
+                      <input id="setting-remember-cover-size" type="checkbox" />
+                      <span class="toggle-switch__track"></span>
+                    </span>
+                  </label>
+
+                  <label class="settings-row settings-row--toggle" for="setting-show-continue-listening">
+                    <div>
+                      <strong>Continue Listening Shelf</strong>
+                      <p>Show or hide the row for books with saved progress.</p>
+                    </div>
+                    <span class="toggle-switch">
+                      <input id="setting-show-continue-listening" type="checkbox" />
+                      <span class="toggle-switch__track"></span>
+                    </span>
+                  </label>
+                </div>
+              </section>
+
+              <section class="settings-card">
+                <div class="section-header compact">
+                  <div>
+                    <p class="eyebrow">Playback</p>
+                    <h3>Defaults</h3>
+                  </div>
+                </div>
+
+                <div class="settings-list">
+                  <label class="settings-row" for="setting-default-playback-speed">
+                    <div>
+                      <strong>Default Playback Speed</strong>
+                      <p>Used when a book does not already have saved playback speed.</p>
+                    </div>
+                    <select id="setting-default-playback-speed" class="settings-select">
+                      <option value="0.75">0.75x</option>
+                      <option value="1">1x</option>
+                      <option value="1.25">1.25x</option>
+                      <option value="1.5">1.5x</option>
+                      <option value="1.75">1.75x</option>
+                      <option value="2">2x</option>
+                    </select>
+                  </label>
+
+                  <label class="settings-row" for="setting-skip-interval">
+                    <div>
+                      <strong>Skip Interval</strong>
+                      <p>Sets the skip buttons and arrow-key skip step.</p>
+                    </div>
+                    <select id="setting-skip-interval" class="settings-select">
+                      <option value="10">10 seconds</option>
+                      <option value="15">15 seconds</option>
+                      <option value="30">30 seconds</option>
+                      <option value="45">45 seconds</option>
+                      <option value="60">60 seconds</option>
+                    </select>
+                  </label>
+
+                  <label class="settings-row settings-row--toggle" for="setting-resume-position">
+                    <div>
+                      <strong>Resume Books Where You Left Off</strong>
+                      <p>Open books at their saved listening position by default.</p>
+                    </div>
+                    <span class="toggle-switch">
+                      <input id="setting-resume-position" type="checkbox" />
+                      <span class="toggle-switch__track"></span>
+                    </span>
+                  </label>
+
+                  <label class="settings-row settings-row--toggle" for="setting-show-mini-player">
+                    <div>
+                      <strong>Show Mini Player On Minimize</strong>
+                      <p>Keep the bottom dock visible when you minimize the full player.</p>
+                    </div>
+                    <span class="toggle-switch">
+                      <input id="setting-show-mini-player" type="checkbox" />
+                      <span class="toggle-switch__track"></span>
+                    </span>
+                  </label>
+                </div>
+              </section>
+
+              <section class="settings-card">
+                <div class="section-header compact">
+                  <div>
+                    <p class="eyebrow">Metadata & Library Behavior</p>
+                    <h3>Scanning</h3>
+                  </div>
+                </div>
+
+                <div class="settings-list">
+                  <label class="settings-row settings-row--toggle" for="setting-auto-refresh-metadata">
+                    <div>
+                      <strong>Auto Refresh Metadata After Scan</strong>
+                      <p>Automatically fetch metadata after importing or rescanning libraries.</p>
+                    </div>
+                    <span class="toggle-switch">
+                      <input id="setting-auto-refresh-metadata" type="checkbox" />
+                      <span class="toggle-switch__track"></span>
+                    </span>
+                  </label>
+
+                  <label class="settings-row settings-row--toggle" for="setting-show-metadata-source">
+                    <div>
+                      <strong>Show Metadata Sources</strong>
+                      <p>Display provider/source lines in book details and the player.</p>
+                    </div>
+                    <span class="toggle-switch">
+                      <input id="setting-show-metadata-source" type="checkbox" />
+                      <span class="toggle-switch__track"></span>
+                    </span>
+                  </label>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section id="continue-panel" class="library-panel continue-panel hidden">
+            <div class="section-header compact">
+              <div>
+                <h3>Continue Listening</h3>
+              </div>
+            </div>
+
+            <div id="continue-list" class="continue-list"></div>
+          </section>
+
+          <section id="collections-panel" class="library-panel collections-panel hidden">
+            <div class="section-header">
+              <div>
+                <h3>Collections</h3>
+              </div>
+            </div>
+
+            <div id="collections-list" class="collections-list"></div>
+          </section>
+
+          <section class="library-panel library-grid-panel">
+            <div class="section-header">
+              <div>
+                <h3>All Books</h3>
+              </div>
+            </div>
+
+            <div id="empty-state" class="empty-state">
+              <div class="empty-state-card">
+                <h4>No audiobooks loaded</h4>
+                <p>
+                  Add one or more library folders to build the cover wall, cache metadata, and
+                  unlock chapter playback.
+                </p>
+              </div>
+            </div>
+
+            <div id="grid-scroll" class="grid-scroll hidden">
+              <div id="grid-content" class="grid-content"></div>
+            </div>
+          </section>
+        </main>
+      </section>
+
+      <section id="player-view" class="player-view" aria-hidden="true">
+        <div id="player-backdrop" class="player-backdrop"></div>
+        <div class="player-surface">
+            <header class="player-header">
+              <div class="player-header__actions">
+                <button
+                  id="close-player"
+                  class="player-icon-button"
+                  type="button"
+                  aria-label="Minimize player"
+                  title="Minimize player"
+                >
+                  <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="chevron-down"></i></span>
+                </button>
+              </div>
+
+              <div class="player-header__actions">
+                <button
+                  id="player-fullscreen"
+                  class="player-icon-button"
+                  type="button"
+                  aria-label="Enter fullscreen"
+                  title="Enter fullscreen"
+                >
+                  <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="maximize"></i></span>
+                </button>
+
+                <button
+                  id="player-chapters-toggle"
+                  class="player-icon-button"
+                  type="button"
+                  aria-label="Open chapter drawer"
+                  title="Chapters"
+                  aria-expanded="false"
+                >
+                  <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="list"></i></span>
+                </button>
+              </div>
+            </header>
+
+          <section class="player-main player-stage-panel">
+            <section class="player-hero">
+              <div class="cover-stage">
+                <img id="player-cover" class="player-cover" alt="" />
+              </div>
+
+              <div class="player-meta">
+                <p class="eyebrow">Now Playing</p>
+                <h2 id="player-title">Select a book</h2>
+                <p id="player-author" class="player-subtitle"></p>
+                <p id="player-narrator" class="player-subtitle muted"></p>
+                <p id="player-current-chapter" class="player-current-chapter">Playback</p>
+                <p id="player-meta-extra" class="player-subtitle muted hidden"></p>
+                <p id="player-meta-source" class="player-subtitle muted hidden"></p>
+
+                <div class="player-summary-shell">
+                  <button
+                    id="player-summary-toggle"
+                    class="player-inline-button"
+                    type="button"
+                    aria-expanded="false"
+                  >
+                    Show Summary
+                  </button>
+
+                  <div id="player-summary-panel" class="player-summary-panel">
+                    <p id="player-summary" class="player-summary"></p>
+                    <button
+                      id="refresh-current-metadata"
+                      class="player-inline-button player-inline-button--secondary"
+                      type="button"
+                    >
+                      Refresh Metadata
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </section>
+
+          <section class="player-dock">
+            <div class="player-dock__meta">
+              <div class="player-dock__book">
+                <strong id="player-dock-title" class="player-dock__title">Select a book</strong>
+                <span id="player-dock-author" class="player-dock__author muted"></span>
+              </div>
+              <div id="player-dock-chapter-block" class="player-dock__chapter-block hidden">
+                <strong id="player-dock-chapter">Playback</strong>
+              </div>
+            </div>
+
+            <div class="progress-card player-progress-card">
+              <input
+                id="progress"
+                class="progress-bar"
+                type="range"
+                min="0"
+                max="0"
+                step="0.1"
+                value="0"
+              />
+              <div class="book-progress-shadow" aria-hidden="true">
+                <span id="book-progress-shadow-fill" class="book-progress-shadow__fill"></span>
+              </div>
+              <div class="time-row">
+                <span id="current-time">0:00</span>
+                <span id="total-time">0:00</span>
+              </div>
+            </div>
+
+            <div class="player-dock__bottom">
+              <div class="transport-row player-transport">
+                <button
+                  id="chapter-back"
+                  class="chapter-nav-button ui-control--icon-only"
+                  type="button"
+                  aria-label="Restart or go to previous chapter"
+                  title="Restart or go to previous chapter"
+                >
+                  <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="skip-back"></i></span>
+                </button>
+
+                <button
+                  id="skip-back"
+                  class="transport-button ui-control--with-icon"
+                  type="button"
+                  aria-label="Back 30 seconds"
+                  title="Back 30 seconds"
+                >
+                  <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="rewind"></i></span>
+                  <span class="ui-control__value">30</span>
+                </button>
+                <button
+                  id="toggle-playback"
+                  class="transport-button transport-primary ui-control--icon-only"
+                  type="button"
+                  aria-label="Play"
+                  title="Play"
+                >
+                  <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="play"></i></span>
+                </button>
+                <button
+                  id="skip-forward"
+                  class="transport-button ui-control--with-icon"
+                  type="button"
+                  aria-label="Forward 30 seconds"
+                  title="Forward 30 seconds"
+                >
+                  <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="fast-forward"></i></span>
+                  <span class="ui-control__value">30</span>
+                </button>
+
+                <button
+                  id="chapter-next"
+                  class="chapter-nav-button ui-control--icon-only"
+                  type="button"
+                  aria-label="Next chapter"
+                  title="Next chapter"
+                >
+                  <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="skip-forward"></i></span>
+                </button>
+              </div>
+
+                <div class="player-dock__utility">
+                  <button
+                    id="player-dock-fullscreen"
+                    class="player-icon-button player-dock__fullscreen"
+                    type="button"
+                    aria-label="Enter fullscreen"
+                    title="Enter fullscreen"
+                  >
+                    <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="maximize"></i></span>
+                  </button>
+
+                  <label class="speed-control" for="speed-select">
+                    <span>Speed</span>
+                    <select id="speed-select">
+                    <option value="0.75">0.75x</option>
+                    <option value="1">1x</option>
+                    <option value="1.25">1.25x</option>
+                    <option value="1.5">1.5x</option>
+                    <option value="1.75">1.75x</option>
+                    <option value="2">2x</option>
+                  </select>
+                </label>
+
+                <label class="volume-control" for="volume-slider">
+                  <span class="volume-icon"><i data-lucide="volume-2"></i></span>
+                  <span id="volume-bubble" class="volume-bubble hidden">100%</span>
+                  <input
+                    id="volume-slider"
+                    class="volume-slider"
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value="100"
+                  />
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <button
+            id="player-drawer-backdrop"
+            class="player-drawer-backdrop hidden"
+            type="button"
+            aria-label="Close chapters"
+          ></button>
+
+          <aside id="chapter-sidebar" class="chapter-sidebar hidden" aria-hidden="true">
+            <div class="chapter-drawer__header">
+              <div>
+                <p class="eyebrow">Queue</p>
+                <h3>Chapters</h3>
+              </div>
+
+              <button
+                id="chapter-drawer-close"
+                class="player-icon-button chapter-drawer__close"
+                type="button"
+                aria-label="Close chapter drawer"
+                title="Close chapters"
+              >
+                <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="x"></i></span>
+              </button>
+            </div>
+            <div id="chapter-list" class="chapter-list"></div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="collection-view" class="collection-view" aria-hidden="true">
+        <div class="collection-surface">
+          <button id="close-collection" class="back-button" type="button">Back to library</button>
+
+          <section class="collection-hero">
+            <div>
+              <p class="eyebrow">Collection</p>
+              <h2 id="collection-title">Collection</h2>
+              <p id="collection-description" class="hero-copy"></p>
+            </div>
+
+            <div class="hero-meta">
+              <div class="meta-pill">
+                <span class="meta-label">Books</span>
+                <strong id="collection-book-count">0</strong>
+              </div>
+              <button id="edit-collection" class="meta-pill interactive-pill" type="button">
+                <span class="meta-label">Manage</span>
+                <strong>Edit Collection Books</strong>
+              </button>
+            </div>
+          </section>
+
+          <section class="library-panel collection-books-panel">
+            <div class="section-header collection-books-header">
+              <div>
+                <p class="eyebrow">Books</p>
+                <h3>Books</h3>
+              </div>
+
+              <label class="collection-size-control" for="collection-size-slider">
+                <span>Cover Size</span>
+                <input
+                  id="collection-size-slider"
+                  type="range"
+                  min="150"
+                  max="320"
+                  step="2"
+                  value="220"
+                />
+              </label>
+            </div>
+
+            <div class="collection-layout">
+              <div id="collection-books" class="collection-books collection-cover-grid"></div>
+
+              <aside class="collection-detail-panel">
+                <div class="section-header compact">
+                  <div>
+                    <p class="eyebrow">Details</p>
+                    <h3>Selected Book</h3>
+                  </div>
+                </div>
+
+                <div id="collection-detail" class="collection-detail"></div>
+              </aside>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <aside id="mini-player" class="mini-player hidden" aria-hidden="true">
+        <div class="mini-player__bar">
+          <button id="mini-player-open" class="mini-player__surface" type="button">
+            <img id="mini-player-cover" class="mini-player__cover" alt="" />
+            <div class="mini-player__body">
+              <strong id="mini-player-title" class="mini-player__title">Nothing playing</strong>
+              <span id="mini-player-meta" class="mini-player__meta">Paused</span>
+            </div>
+          </button>
+
+          <div class="mini-player__center">
+            <div class="mini-player__header">
+              <div class="mini-player__chapter-picker">
+                <button
+                  id="mini-player-chapter-button"
+                  class="mini-player__chapter-button"
+                  type="button"
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                  title="Choose chapter"
+                >
+                  <span id="mini-player-chapter" class="mini-player__chapter">Playback</span>
+                  <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="chevron-down"></i></span>
+                </button>
+
+                <div
+                  id="mini-player-chapter-menu"
+                  class="mini-player__chapter-menu hidden"
+                  aria-hidden="true"
+                >
+                  <div id="mini-player-chapter-list" class="mini-player__chapter-list"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mini-player__controls">
+              <button id="mini-player-back" class="mini-player__control ui-control--icon-only" type="button">
+                <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="skip-back"></i></span>
+              </button>
+              <button id="mini-player-skip-back" class="mini-player__control ui-control--with-icon" type="button">
+                <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="rewind"></i></span>
+                <span class="ui-control__value">30</span>
+              </button>
+              <button
+                id="mini-player-toggle"
+                class="mini-player__control mini-player__control--primary ui-control--icon-only"
+                type="button"
+              >
+                <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="play"></i></span>
+              </button>
+              <button id="mini-player-skip-forward" class="mini-player__control ui-control--with-icon" type="button">
+                <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="fast-forward"></i></span>
+                <span class="ui-control__value">30</span>
+              </button>
+              <button id="mini-player-next" class="mini-player__control ui-control--icon-only" type="button">
+                <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="skip-forward"></i></span>
+              </button>
+            </div>
+
+            <div class="mini-player__timeline">
+              <span id="mini-player-current-time" class="mini-player__time">0:00</span>
+              <input
+                id="mini-player-progress"
+                class="mini-player__progress"
+                type="range"
+                min="0"
+                max="0"
+                step="0.1"
+                value="0"
+              />
+              <span id="mini-player-total-time" class="mini-player__time">0:00</span>
+            </div>
+          </div>
+
+          <div class="mini-player__actions">
+            <label class="mini-player__volume" for="mini-player-volume">
+              <span class="mini-player__volume-icon"><i data-lucide="volume-2"></i></span>
+              <input
+                id="mini-player-volume"
+                class="mini-player__volume-slider"
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value="100"
+              />
+            </label>
+
+            <button id="mini-player-expand" class="mini-player__action ui-control--icon-only" type="button">
+              <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="arrow-up"></i></span>
+            </button>
+            <button
+              id="mini-player-close"
+              class="mini-player__action ui-control--icon-only"
+              type="button"
+              aria-label="Stop playback"
+              title="Stop playback"
+            >
+              <span class="ui-icon-slot" aria-hidden="true"><i data-lucide="x"></i></span>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <div id="loading-overlay" class="loading-overlay hidden" aria-hidden="true">
+        <div class="loading-card">
+          <div class="loading-spinner"></div>
+          <p id="loading-message">Scanning library...</p>
+        </div>
+      </div>
+
+      <div id="collection-modal" class="modal-overlay hidden" aria-hidden="true">
+        <div class="modal-card">
+          <div class="section-header compact">
+            <div>
+              <p class="eyebrow">Collection</p>
+              <h3 id="collection-modal-title">New Collection</h3>
+            </div>
+          </div>
+
+          <label class="form-field" for="collection-name-input">
+            <span>Name</span>
+            <input id="collection-name-input" type="text" maxlength="120" />
+          </label>
+
+          <label class="form-field" for="collection-description-input">
+            <span>Description</span>
+            <textarea id="collection-description-input" rows="4" maxlength="600"></textarea>
+          </label>
+
+          <div class="modal-actions">
+            <button id="collection-modal-cancel" class="button button-secondary" type="button">
+              Cancel
+            </button>
+            <button id="collection-modal-save" class="button button-primary" type="button">
+              Save Collection
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+    </div>
+
+    <script src="../../node_modules/lucide/dist/umd/lucide.min.js"></script>
+    <script src="../../node_modules/motion/dist/motion.js"></script>
+    <script src="./vendor/howler.core.min.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
