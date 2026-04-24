@@ -53,7 +53,13 @@ export class AudiobookPlayer {
     this.mediaElementSource = null;
     this.currentMediaElement = null;
     this.frequencyData = null;
+    this.timeDomainData = null;
     this.reactiveLevel = 0;
+    this.reactivePulse = 0;
+    this.reactiveBass = 0;
+    this.reactivePresence = 0;
+    this.reactiveAir = 0;
+    this.previousReactiveEnergy = 0;
   }
 
   /**
@@ -274,6 +280,18 @@ export class AudiobookPlayer {
   getReactiveLevel() {
     this.updateReactiveLevel();
     return this.reactiveLevel;
+  }
+
+  /** Returns richer analyser-derived motion metrics for immersive player visuals. */
+  getReactiveMetrics() {
+    this.updateReactiveLevel();
+    return {
+      level: this.reactiveLevel,
+      pulse: this.reactivePulse,
+      bass: this.reactiveBass,
+      presence: this.reactivePresence,
+      air: this.reactiveAir
+    };
   }
 
   /** Converts a global timeline position into a local offset within one audio section. */
@@ -504,13 +522,15 @@ export class AudiobookPlayer {
     try {
       this.audioContext = new window.AudioContext();
       this.analyserNode = this.audioContext.createAnalyser();
-      this.analyserNode.fftSize = 256;
-      this.analyserNode.smoothingTimeConstant = 0.88;
+      this.analyserNode.fftSize = 512;
+      this.analyserNode.smoothingTimeConstant = 0.72;
       this.frequencyData = new Uint8Array(this.analyserNode.frequencyBinCount);
+      this.timeDomainData = new Uint8Array(this.analyserNode.fftSize);
     } catch {
       this.audioContext = null;
       this.analyserNode = null;
       this.frequencyData = null;
+      this.timeDomainData = null;
     }
 
     return this.audioContext;
@@ -590,28 +610,101 @@ export class AudiobookPlayer {
     this.audioContext = null;
     this.analyserNode = null;
     this.frequencyData = null;
+    this.timeDomainData = null;
     this.reactiveLevel = 0;
+    this.reactivePulse = 0;
+    this.reactiveBass = 0;
+    this.reactivePresence = 0;
+    this.reactiveAir = 0;
+    this.previousReactiveEnergy = 0;
   }
 
   /** Samples the analyser and smooths it down into one calm energy value for the fullscreen background. */
   updateReactiveLevel() {
-    if (!this.analyserNode || !this.frequencyData || !this.currentMediaElement) {
-      this.reactiveLevel *= 0.9;
+    if (!this.analyserNode || !this.frequencyData || !this.timeDomainData || !this.currentMediaElement) {
+      this.reactiveLevel *= 0.93;
+      this.reactivePulse *= 0.86;
+      this.reactiveBass *= 0.91;
+      this.reactivePresence *= 0.91;
+      this.reactiveAir *= 0.91;
       return this.reactiveLevel;
     }
 
     try {
       this.analyserNode.getByteFrequencyData(this.frequencyData);
-      let total = 0;
-      for (const value of this.frequencyData) {
-        total += value;
+      this.analyserNode.getByteTimeDomainData(this.timeDomainData);
+
+      let lowTotal = 0;
+      let midTotal = 0;
+      let highTotal = 0;
+      let lowCount = 0;
+      let midCount = 0;
+      let highCount = 0;
+      const nyquist = this.audioContext?.sampleRate
+        ? this.audioContext.sampleRate / 2
+        : 22050;
+      const binWidth = this.frequencyData.length > 0 ? nyquist / this.frequencyData.length : 0;
+
+      for (let index = 0; index < this.frequencyData.length; index += 1) {
+        const value = this.frequencyData[index];
+        const frequency = binWidth * index;
+
+        if (frequency < 220) {
+          lowTotal += value;
+          lowCount += 1;
+        } else if (frequency < 2200) {
+          midTotal += value;
+          midCount += 1;
+        } else {
+          highTotal += value;
+          highCount += 1;
+        }
       }
 
-      const average = this.frequencyData.length > 0 ? total / this.frequencyData.length : 0;
-      const normalized = clamp(average / 255, 0, 1);
-      this.reactiveLevel += (normalized - this.reactiveLevel) * 0.18;
+      let waveformDeltaTotal = 0;
+      let waveformPeak = 0;
+      for (const sample of this.timeDomainData) {
+        const centered = Math.abs(sample - 128) / 128;
+        waveformDeltaTotal += centered;
+        waveformPeak = Math.max(waveformPeak, centered);
+      }
+
+      const low = clamp((lowCount ? lowTotal / lowCount : 0) / 255, 0, 1);
+      const mid = clamp((midCount ? midTotal / midCount : 0) / 255, 0, 1);
+      const high = clamp((highCount ? highTotal / highCount : 0) / 255, 0, 1);
+      const waveformAverage = clamp(
+        this.timeDomainData.length > 0 ? waveformDeltaTotal / this.timeDomainData.length : 0,
+        0,
+        1
+      );
+
+      const weightedEnergy = clamp(
+        low * 0.3 + mid * 0.44 + high * 0.18 + waveformAverage * 0.46 + waveformPeak * 0.22,
+        0,
+        1
+      );
+      const transient = clamp(weightedEnergy - this.previousReactiveEnergy, 0, 1);
+      this.previousReactiveEnergy += (weightedEnergy - this.previousReactiveEnergy) * 0.18;
+
+      this.reactiveBass += (low - this.reactiveBass) * 0.18;
+      this.reactivePresence += (mid - this.reactivePresence) * 0.16;
+      this.reactiveAir += (high - this.reactiveAir) * 0.14;
+      this.reactivePulse = Math.max(
+        transient * 1.45 + waveformPeak * 0.1,
+        this.reactivePulse * 0.9
+      );
+      const targetLevel = clamp(
+        weightedEnergy * 0.72 + this.reactivePulse * 0.16 + this.reactivePresence * 0.12,
+        0,
+        1
+      );
+      this.reactiveLevel += (targetLevel - this.reactiveLevel) * 0.16;
     } catch {
-      this.reactiveLevel *= 0.92;
+      this.reactiveLevel *= 0.94;
+      this.reactivePulse *= 0.88;
+      this.reactiveBass *= 0.92;
+      this.reactivePresence *= 0.92;
+      this.reactiveAir *= 0.92;
     }
 
     return this.reactiveLevel;

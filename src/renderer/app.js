@@ -1184,10 +1184,49 @@ function schedulePlayerHudHide() {
 
 /** Drives the fullscreen background's subtle reactive CSS variables from the current audio energy level. */
 function updatePlayerReactiveScene() {
-  state.playerReactiveLevel = player.getReactiveLevel?.() || 0;
-  const softLevel = Math.max(0, Math.min(1, state.playerReactiveLevel));
+  const reactiveMetrics = player.getReactiveMetrics?.() || {
+    level: player.getReactiveLevel?.() || 0,
+    pulse: 0,
+    bass: 0,
+    presence: 0,
+    air: 0
+  };
+  state.playerReactiveLevel = reactiveMetrics.level || 0;
+  const softLevel = Math.max(0, Math.min(1, reactiveMetrics.level || 0));
+  const pulseLevel = Math.max(0, Math.min(1, reactiveMetrics.pulse || 0));
+  const bassLevel = Math.max(0, Math.min(1, reactiveMetrics.bass || 0));
+  const presenceLevel = Math.max(0, Math.min(1, reactiveMetrics.presence || 0));
+  const airLevel = Math.max(0, Math.min(1, reactiveMetrics.air || 0));
+  const sceneTime = performance.now() / 1000;
+  const driftWave =
+    Math.sin(sceneTime * (0.58 + bassLevel * 0.08)) +
+    Math.sin(sceneTime * (0.28 + airLevel * 0.12) + 1.8) * 0.7 +
+    Math.sin(sceneTime * (0.74 + pulseLevel * 0.22) + 0.6) * 0.16;
+  const driftLevel = (driftWave + 1) / 2;
+  const glowLevel = Math.min(
+    1,
+    softLevel * 0.54 + pulseLevel * 0.16 + presenceLevel * 0.1 + driftLevel * 0.14
+  );
   elements.playerView.style.setProperty("--player-reactive-level", softLevel.toFixed(4));
-  elements.playerView.style.setProperty("--player-reactive-boost", `${1 + softLevel * 0.18}`);
+  elements.playerView.style.setProperty("--player-reactive-pulse", pulseLevel.toFixed(4));
+  elements.playerView.style.setProperty("--player-reactive-bass", bassLevel.toFixed(4));
+  elements.playerView.style.setProperty("--player-reactive-presence", presenceLevel.toFixed(4));
+  elements.playerView.style.setProperty("--player-reactive-air", airLevel.toFixed(4));
+  elements.playerView.style.setProperty("--player-reactive-glow", glowLevel.toFixed(4));
+  elements.playerView.style.setProperty(
+    "--player-reactive-boost",
+    `${1 + glowLevel * 0.12 + pulseLevel * 0.05 + bassLevel * 0.03}`
+  );
+  elements.playerView.style.setProperty(
+    "--player-reactive-hue",
+    `${(
+      (driftLevel - 0.5) * 10 +
+      pulseLevel * 5 -
+      bassLevel * 3 +
+      airLevel * 4 +
+      presenceLevel * 3
+    ).toFixed(2)}deg`
+  );
 
   if (!state.playerOpen || !state.playerFullscreen) {
     state.playerReactiveFrame = 0;

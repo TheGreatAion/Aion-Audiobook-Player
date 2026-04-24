@@ -14,6 +14,7 @@ const DIRECTORY_COVER_NAMES = [
   "folder.jpeg",
   "folder.png"
 ];
+const CUE_TIMESTAMP_FRAMES_PER_SECOND = 75;
 
 /** Keeps file and book ordering stable in a human-friendly way across scans. */
 function naturalSort(a, b) {
@@ -220,6 +221,136 @@ function buildFallbackSummary({ title, author, narrator, duration, sectionCount 
   return pieces.join(" ").trim();
 }
 
+/** Parses cue timestamps that may use either CD frames or centiseconds for the final field. */
+function cueTimestampToSeconds(timestamp, treatLastFieldAsCentiseconds) {
+  const parts = sanitizeText(timestamp).split(":");
+  if (parts.length !== 3) {
+    return null;
+  }
+
+  const minutes = Number(parts[0]);
+  const seconds = Number(parts[1]);
+  const fraction = Number(parts[2]);
+  if (![minutes, seconds, fraction].every(Number.isFinite)) {
+    return null;
+  }
+
+  return minutes * 60 + seconds + (treatLastFieldAsCentiseconds ? fraction / 100 : fraction / CUE_TIMESTAMP_FRAMES_PER_SECOND);
+}
+
+/** Chooses the cue timestamp mode that fits the actual file duration best. */
+function shouldTreatCueFractionsAsCentiseconds(timestamps, fallbackDuration) {
+  if (!Array.isArray(timestamps) || timestamps.length === 0 || !Number.isFinite(fallbackDuration) || fallbackDuration <= 0) {
+    return false;
+  }
+
+  const scoreMode = (treatLastFieldAsCentiseconds) => {
+    const starts = timestamps
+      .map((timestamp) => cueTimestampToSeconds(timestamp, treatLastFieldAsCentiseconds))
+      .filter(Number.isFinite);
+    const overflowCount = starts.filter((start) => start > fallbackDuration + 1).length;
+    const lastStart = starts[starts.length - 1] ?? 0;
+    const overshoot = Math.max(0, lastStart - fallbackDuration);
+    const trailingGap = lastStart <= fallbackDuration ? fallbackDuration - lastStart : Number.POSITIVE_INFINITY;
+
+    return {
+      overflowCount,
+      overshoot,
+      trailingGap
+    };
+  };
+
+  const framesScore = scoreMode(false);
+  const centisecondsScore = scoreMode(true);
+
+  if (centisecondsScore.overflowCount !== framesScore.overflowCount) {
+    return centisecondsScore.overflowCount < framesScore.overflowCount;
+  }
+
+  if (centisecondsScore.overshoot !== framesScore.overshoot) {
+    return centisecondsScore.overshoot < framesScore.overshoot;
+  }
+
+  return centisecondsScore.trailingGap < framesScore.trailingGap;
+}
+
+/** Parses a sidecar cue sheet into chapter markers for single-file audiobooks that lack embedded chapters. */
+async function parseCueChapters(audioFilePath, fallbackDuration, fallbackTitle) {
+  const cuePath = path.join(
+    path.dirname(audioFilePath),
+    `${path.basename(audioFilePath, path.extname(audioFilePath))}.cue`
+  );
+
+  let cueContents = "";
+  try {
+    cueContents = await fs.readFile(cuePath, "utf8");
+  } catch {
+    return [];
+  }
+
+  const lines = cueContents.split(/\r?\n/);
+  const rawTracks = [];
+  let currentTrack = null;
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+
+    if (/^TRACK\s+\d+\s+AUDIO$/i.test(trimmedLine)) {
+      currentTrack = {
+        title: "",
+        startTimestamp: ""
+      };
+      rawTracks.push(currentTrack);
+      continue;
+    }
+
+    if (!currentTrack) {
+      continue;
+    }
+
+    const titleMatch = trimmedLine.match(/^TITLE\s+"(.+)"$/i);
+    if (titleMatch) {
+      currentTrack.title = sanitizeText(titleMatch[1]);
+      continue;
+    }
+
+    const indexMatch = trimmedLine.match(/^INDEX\s+01\s+(\d+:\d+:\d+)$/i);
+    if (!indexMatch) {
+      continue;
+    }
+
+    currentTrack.startTimestamp = indexMatch[1];
+  }
+
+  const usesCentiseconds = shouldTreatCueFractionsAsCentiseconds(
+    rawTracks.map((track) => track.startTimestamp).filter(Boolean),
+    fallbackDuration
+  );
+
+  return trimDegenerateTrailingChapters(
+    rawTracks.map((track, index, allTracks) => {
+      const rawStart = cueTimestampToSeconds(track.startTimestamp, usesCentiseconds);
+      const nextStart =
+        index < allTracks.length - 1
+          ? cueTimestampToSeconds(allTracks[index + 1].startTimestamp, usesCentiseconds)
+          : fallbackDuration;
+      const start = Math.min(Math.max(0, rawStart || 0), fallbackDuration || rawStart || 0);
+      const end = Math.min(
+        Math.max(start, nextStart || fallbackDuration || start),
+        fallbackDuration || Math.max(start, nextStart || start)
+      );
+
+      return {
+        id: `${fallbackTitle}-cue-chapter-${index}`,
+        title: track.title || `Chapter ${index + 1}`,
+        start: Number.isFinite(start) ? start : -1,
+        end
+      };
+    })
+    .filter((chapter) => Number.isFinite(chapter.start) && chapter.start >= 0 && Number.isFinite(chapter.end))
+  );
+}
+
 /**
  * Normalizes chapter data and synthesizes a single chapter when source files have none.
  *
@@ -262,6 +393,39 @@ function normalizeChapters(rawChapters, fallbackDuration, fallbackTitle) {
       };
     })
     .filter((chapter) => Number.isFinite(chapter.start) && Number.isFinite(chapter.end));
+}
+
+/** Drops terminal chapter markers that collapse to effectively zero duration after normalization. */
+function trimDegenerateTrailingChapters(chapters) {
+  if (!Array.isArray(chapters) || chapters.length <= 1) {
+    return Array.isArray(chapters) ? chapters : [];
+  }
+
+  const normalizedChapters = [...chapters];
+  while (
+    normalizedChapters.length > 1 &&
+    normalizedChapters[normalizedChapters.length - 1].end - normalizedChapters[normalizedChapters.length - 1].start <= 1
+  ) {
+    normalizedChapters.pop();
+  }
+
+  return normalizedChapters;
+}
+
+/** Chooses the best chapter source for single-file audiobooks, preferring cue sheets when embedded markers are missing or collapsed. */
+async function resolveSingleFileChapters(sourceFile, embeddedChapters, fallbackDuration, fallbackTitle) {
+  const normalizedEmbeddedChapters = normalizeChapters(embeddedChapters, fallbackDuration, fallbackTitle);
+  const cueChapters = await parseCueChapters(sourceFile, fallbackDuration, fallbackTitle);
+
+  if (cueChapters.length > 1 && normalizedEmbeddedChapters.length <= 1) {
+    return cueChapters;
+  }
+
+  if (cueChapters.length > normalizedEmbeddedChapters.length && normalizedEmbeddedChapters.length <= 2) {
+    return cueChapters;
+  }
+
+  return normalizedEmbeddedChapters;
 }
 
 /**
@@ -619,7 +783,7 @@ async function createSingleAssetBook(candidate, rootFolder, coversDir) {
 
   const chapters =
     extension === ".m4b"
-      ? normalizeChapters(metadata?.format?.chapters, duration, title)
+      ? await resolveSingleFileChapters(sourceFile, metadata?.format?.chapters, duration, title)
       : normalizeChapters([], duration, title);
 
   return {
